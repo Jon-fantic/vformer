@@ -1,7 +1,7 @@
 {
-  "name": "vformer",
+  "name": "za-vformer",
   "main": "index.js",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "form generator build on vue",
   "author": "jankergg <jankergg@gmail.com>",
   "scripts": {
