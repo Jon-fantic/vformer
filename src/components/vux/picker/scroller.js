@@ -1,10 +1,13 @@
 /*
- * Anima Scroller
- * Based Zynga Scroller (http://github.com/zynga/scroller)
- * Copyright 2011, Zynga Inc.
- * Licensed under the MIT License.
- * https://raw.github.com/zynga/scroller/master/MIT-LICENSE.txt
- */
+* Anima Scroller
+* Based Zynga Scroller (http://github.com/zynga/scroller)
+* Copyright 2011, Zynga Inc.
+* Licensed under the MIT License.
+* https://raw.github.com/zynga/scroller/master/MIT-LICENSE.txt
+*/
+
+const isBrowser = typeof window === 'object'
+
 const TEMPLATE = `
 <div class="scroller-component" data-role="component">
   <div class="scroller-mask" data-role="mask"></div>
@@ -15,9 +18,22 @@ const TEMPLATE = `
 
 const Animate = require('./animate')
 const { getElement, getComputedStyle, easeOutCubic, easeInOutCubic } = require('./util')
+const passiveSupported = require('./passive_supported')
 
-var Scroller = function (container, options) {
-  var self = this
+const getDpr = function () {
+  let dpr = 1
+  if (isBrowser) {
+    if (window.VUX_CONFIG && window.VUX_CONFIG.$picker && window.VUX_CONFIG.$picker.respectHtmlDataDpr) {
+      dpr = document.documentElement.getAttribute('data-dpr') || 1
+    }
+  }
+  return dpr
+}
+
+const Scroller = function (container, options) {
+  const self = this
+
+  self.dpr = getDpr()
 
   options = options || {}
 
@@ -57,10 +73,13 @@ var Scroller = function (container, options) {
   content.innerHTML = html
 
   self.__container.appendChild(component)
-  self.__itemHeight = + (parseFloat(getComputedStyle(indicator, 'height'), 10).toFixed(2))
+
+  self.__itemHeight = parseFloat(getComputedStyle(indicator, 'height'), 10)
 
   self.__callback = options.callback || function (top) {
-    content.style.webkitTransform = 'translate3d(0, ' + (-top) + 'px, 0)'
+    const distance = -top * self.dpr
+    content.style.webkitTransform = 'translate3d(0, ' + distance + 'px, 0)'
+    content.style.transform = 'translate3d(0, ' + distance + 'px, 0)'
   }
 
   var rect = component.getBoundingClientRect()
@@ -90,14 +109,17 @@ var Scroller = function (container, options) {
     self.__doTouchEnd(e.timeStamp)
   }
 
-  component.addEventListener('touchstart', touchStartHandler, false)
-  component.addEventListener('mousedown', touchStartHandler, false)
+  const willPreventDefault = passiveSupported ? {passive: false} : false
+  const willNotPreventDefault = passiveSupported ? {passive: true} : false
 
-  component.addEventListener('touchmove', touchMoveHandler, false)
-  component.addEventListener('mousemove', touchMoveHandler, false)
+  component.addEventListener('touchstart', touchStartHandler, willPreventDefault)
+  component.addEventListener('mousedown', touchStartHandler, willPreventDefault)
 
-  component.addEventListener('touchend', touchEndHandler, false)
-  component.addEventListener('mouseup', touchEndHandler, false)
+  component.addEventListener('touchmove', touchMoveHandler, willNotPreventDefault)
+  component.addEventListener('mousemove', touchMoveHandler, willNotPreventDefault)
+
+  component.addEventListener('touchend', touchEndHandler, willNotPreventDefault)
+  component.addEventListener('mouseup', touchEndHandler, willNotPreventDefault)
 }
 
 var members = {
@@ -133,7 +155,8 @@ var members = {
 
     var totalItemCount = self.options.data.length
     var clientItemCount = Math.round(self.__clientHeight / self.__itemHeight)
-    self.__minScrollTop = +(-self.__itemHeight * clientItemCount / 2).toFixed(2)
+
+    self.__minScrollTop = -self.__itemHeight * (clientItemCount / 2)
     self.__maxScrollTop = self.__minScrollTop + totalItemCount * self.__itemHeight - 0.1
   },
 
@@ -142,7 +165,8 @@ var members = {
     if (index < 0 || index > self.__content.childElementCount - 1) {
       return
     }
-    self.__scrollTop = +(self.__minScrollTop + index * self.__itemHeight).toFixed(2)
+    self.__scrollTop = self.__minScrollTop + index * self.__itemHeight
+
     self.scrollTo(self.__scrollTop, animate)
 
     self.__selectItem(self.__content.children[index])
@@ -154,7 +178,7 @@ var members = {
     var children = self.__content.children
     for (var i = 0, len = children.length; i < len; i++) {
       if (decodeURI(JSON.parse(children[i].dataset.value).value) === value) {
-         self.selectByIndex(i, animate)
+        self.selectByIndex(i, animate)
         return
       }
     }
@@ -175,8 +199,10 @@ var members = {
       Animate.stop(self.__isDecelerating)
       self.__isDecelerating = false
     }
-    top = Math.round(top / self.__itemHeight) * self.__itemHeight
+
+    top = Math.round((top / self.__itemHeight).toFixed(5)) * self.__itemHeight
     top = Math.max(Math.min(self.__maxScrollTop, top), self.__minScrollTop)
+
     if (top === self.__scrollTop || !animate) {
       self.__publish(top)
       self.__scrollingComplete()
@@ -208,8 +234,11 @@ var members = {
 
   __scrollingComplete () {
     var self = this
+
     var index = Math.round((self.__scrollTop - self.__minScrollTop - self.__itemHeight / 2) / self.__itemHeight)
+
     self.__selectItem(self.__content.children[index])
+
     if (self.__prevValue !== null && self.__prevValue !== self.value) {
       self.options.onSelect(self.value)
     }
@@ -431,6 +460,7 @@ var members = {
       Animate.stop(wasAnimating)
       self.__isAnimating = false
     }
+
     if (animationDuration) {
       // Keep scheduled positions for scrollBy functionality
       self.__scheduledTop = top
