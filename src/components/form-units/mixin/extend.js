@@ -33,7 +33,7 @@ export const checkmobile = {
     cn: (field, args) => '录入不正确'
   },
   validate: (value, args) => {
-    return /^1[345789]\d{9}$/.test(trimStr(value))
+    return /^1[3456789]\d{9}$/.test(trimStr(value))
   }
 }
 
